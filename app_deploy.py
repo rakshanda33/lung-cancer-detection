@@ -10,33 +10,40 @@ import matplotlib.pyplot as plt
 import gdown
 
 # -------------------------------
-# Download Model (ONLY ONCE)
+# CONFIG
 # -------------------------------
-MODEL_URL = "https://drive.google.com/uc?id=1HMLvxxL95RVFUcu7w39dyuex4ywRbrMx"
-MODEL_PATH = "lung_cancer_model.h5"
-
-if not os.path.exists(MODEL_PATH):
-    gdown.download(MODEL_URL, MODEL_PATH, quiet=False)
+MODEL_ID = "1HMLvxxL95RVFUcu7w39dyuex4ywRbrMx"
+MODEL_PATH = "lung_cancer_model.keras"
 
 # -------------------------------
-# Load Model
+# DOWNLOAD MODEL (ONCE)
 # -------------------------------
-model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+@st.cache_resource
+def load_model():
+    if not os.path.exists(MODEL_PATH):
+        url = f"https://drive.google.com/uc?id={MODEL_ID}"
+        gdown.download(url, MODEL_PATH, quiet=False)
+
+    model = tf.keras.models.load_model(MODEL_PATH, compile=False)
+    return model
+
+model = load_model()
+
 class_names = ["Benign", "Malignant", "Normal"]
 
 # -------------------------------
-# Page Config
+# PAGE CONFIG
 # -------------------------------
 st.set_page_config(page_title="Lung Cancer Detection", layout="wide")
 
 # -------------------------------
-# Sidebar
+# SIDEBAR
 # -------------------------------
 st.sidebar.title("🫁 Lung Cancer System")
 page = st.sidebar.radio("Go to", ["Home", "Prediction"])
 
 # -------------------------------
-# Home
+# HOME
 # -------------------------------
 if page == "Home":
     st.title("🏥 Lung Cancer Detection System")
@@ -50,7 +57,7 @@ if page == "Home":
     """)
 
 # -------------------------------
-# Prediction Page
+# PREDICTION
 # -------------------------------
 elif page == "Prediction":
 
@@ -58,12 +65,18 @@ elif page == "Prediction":
 
     col1, col2 = st.columns(2)
 
+    # -------------------------------
+    # PATIENT DETAILS
+    # -------------------------------
     with col1:
         name = st.text_input("Patient Name")
         age = st.number_input("Age", 1, 120)
         sex = st.selectbox("Sex", ["Male", "Female", "Other"])
         uploaded_file = st.file_uploader("Upload CT Scan", type=["jpg", "png", "jpeg"])
 
+    # -------------------------------
+    # PREDICTION FUNCTION
+    # -------------------------------
     def predict(image):
         img = image.resize((224, 224))
         img = np.array(img) / 255.0
@@ -75,6 +88,9 @@ elif page == "Prediction":
 
         return class_index, confidence, preds
 
+    # -------------------------------
+    # RISK LEVEL
+    # -------------------------------
     def get_risk(label, confidence):
         if label == "Malignant":
             if confidence > 0.7:
@@ -84,9 +100,12 @@ elif page == "Prediction":
         else:
             return "Low", "green"
 
+    # -------------------------------
+    # OUTPUT
+    # -------------------------------
     with col2:
         if uploaded_file is not None:
-            image = Image.open(uploaded_file)
+            image = Image.open(uploaded_file).convert("RGB")
             st.image(image, caption="CT Scan", width="stretch")
 
             if st.button("Predict"):
@@ -103,7 +122,9 @@ elif page == "Prediction":
                 **Risk Level:** :{color}[{risk}]
                 """)
 
-                # Line Graph
+                # -------------------------------
+                # LINE GRAPH
+                # -------------------------------
                 fig, ax = plt.subplots()
                 ax.plot(class_names, preds, marker='o')
                 ax.set_ylim(0, 1)
@@ -111,16 +132,21 @@ elif page == "Prediction":
                 ax.set_title("Prediction Confidence")
                 st.pyplot(fig)
 
-                # Save image temp
+                # -------------------------------
+                # SAVE IMAGE TEMP
+                # -------------------------------
                 with tempfile.NamedTemporaryFile(delete=False, suffix=".png") as tmp_file:
                     image.save(tmp_file.name)
                     temp_image_path = tmp_file.name
 
-                # PDF
+                # -------------------------------
+                # PDF GENERATION
+                # -------------------------------
                 def generate_pdf():
                     pdf = FPDF()
                     pdf.add_page()
 
+                    # HEADER
                     pdf.set_font("Arial", "B", 18)
                     pdf.cell(200, 10, "AI Diagnostic Center", ln=True, align="C")
 
@@ -130,6 +156,7 @@ elif page == "Prediction":
                     pdf.ln(5)
                     pdf.cell(200, 0, "", ln=True, border="T")
 
+                    # PATIENT INFO
                     pdf.ln(8)
                     pdf.set_font("Arial", "B", 14)
                     pdf.cell(200, 10, "Patient Information", ln=True)
@@ -140,6 +167,7 @@ elif page == "Prediction":
                     pdf.cell(100, 8, f"Sex: {sex}", ln=False)
                     pdf.cell(100, 8, f"Date: {datetime.datetime.now().strftime('%Y-%m-%d %H:%M')}", ln=True)
 
+                    # RESULT
                     pdf.ln(5)
                     pdf.set_font("Arial", "B", 14)
                     pdf.cell(200, 10, "Diagnosis Summary", ln=True)
@@ -157,11 +185,13 @@ elif page == "Prediction":
                     pdf.set_text_color(0, 0, 0)
                     pdf.cell(200, 8, f"Confidence: {confidence:.2f}", ln=True)
 
+                    # IMAGE
                     pdf.ln(5)
                     pdf.set_font("Arial", "B", 14)
                     pdf.cell(200, 10, "CT Scan Image", ln=True)
                     pdf.image(temp_image_path, x=30, w=150)
 
+                    # FOOTER
                     pdf.ln(85)
                     pdf.set_font("Arial", "I", 10)
                     pdf.set_text_color(100, 100, 100)
@@ -175,6 +205,9 @@ elif page == "Prediction":
                     pdf.output(pdf_path)
                     return pdf_path
 
+                # -------------------------------
+                # DOWNLOAD
+                # -------------------------------
                 pdf_path = generate_pdf()
 
                 with open(pdf_path, "rb") as f:
