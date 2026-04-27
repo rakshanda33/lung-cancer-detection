@@ -1,0 +1,7 @@
+streamlit
+tensorflow-cpu
+numpy
+pillow
+fpdf
+matplotlib
+gdown
